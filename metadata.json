@@ -1,0 +1,6 @@
+{
+  "name": "PixPay - Plataforma Geradora de Pix",
+  "description": "Plataforma completa para geração de links de pagamento Pix, QR Codes estáticos e dinâmicos, gerenciamento de chaves e checkout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
