@@ -19,6 +19,7 @@ import { PixQRCode } from './PixQRCode';
 import { PixPaymentLink } from '../types/pix';
 import { ConfirmModal } from './ConfirmModal';
 import { GovPixBadge } from './GovBadge';
+import { createShareablePixUrl, formatDisplayPixUrl } from '../utils/linkSharing';
 
 interface PixTableProps {
   links: PixPaymentLink[];
@@ -27,6 +28,7 @@ interface PixTableProps {
   onDeleteLink: (linkId: string) => void;
   onClearAllLinks?: () => void;
   onOpenGenerateModal?: () => void;
+  onVisitCheckout?: (link: PixPaymentLink) => void;
 }
 
 export const PixTable: React.FC<PixTableProps> = ({
@@ -36,6 +38,7 @@ export const PixTable: React.FC<PixTableProps> = ({
   onDeleteLink,
   onClearAllLinks,
   onOpenGenerateModal,
+  onVisitCheckout,
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');

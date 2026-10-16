@@ -1,15 +1,28 @@
 import React, { useState } from 'react';
-import { Check, Copy, Info, X, Share2, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Info,
+  X,
+  Share2,
+  CheckCircle2,
+  RefreshCw,
+  ShieldCheck,
+  ExternalLink,
+  Link2,
+} from 'lucide-react';
 import { PixIcon } from './PixLogo';
 import { PixQRCode } from './PixQRCode';
 import { PixPaymentLink } from '../types/pix';
 import { GovPixBadge } from './GovBadge';
+import { createShareablePixUrl, formatDisplayPixUrl } from '../utils/linkSharing';
 
 interface GeneratedPixModalProps {
   isOpen: boolean;
   onClose: () => void;
   pixLink: PixPaymentLink | null;
   onMarkAsPaid?: (linkId: string) => void;
+  onVisitLink?: (link: PixPaymentLink) => void;
 }
 
 export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
@@ -17,15 +30,18 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
   onClose,
   pixLink,
   onMarkAsPaid,
+  onVisitLink,
 }) => {
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [copiedShareUrl, setCopiedShareUrl] = useState(false);
-  // Default to official gov.br payload format as requested by user
   const [activeTab, setActiveTab] = useState<'payload' | 'chave'>('payload');
   const [simulatedPaid, setSimulatedPaid] = useState(false);
 
   if (!isOpen || !pixLink) return null;
+
+  const shareableUrl = createShareablePixUrl(pixLink);
+  const displayUrl = formatDisplayPixUrl(pixLink.slug);
 
   const handleCopyPayload = () => {
     navigator.clipboard.writeText(pixLink.payload);
@@ -39,18 +55,25 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
+  const handleCopyShareUrl = () => {
+    navigator.clipboard.writeText(shareableUrl);
+    setCopiedShareUrl(true);
+    setTimeout(() => setCopiedShareUrl(false), 2500);
+  };
+
   const handleShare = () => {
-    const url = `${window.location.origin}/pay/${pixLink.slug}`;
     if (navigator.share) {
-      navigator.share({
-        title: 'Pagamento Pix',
-        text: `Pague via Pix: ${pixLink.amount ? `R$ ${pixLink.amount.toFixed(2)}` : 'Valor aberto'}`,
-        url,
-      }).catch(() => {});
+      navigator
+        .share({
+          title: 'Cobrança Pix Oficial',
+          text: `Pague via Pix: ${
+            pixLink.amount !== null ? `R$ ${pixLink.amount.toFixed(2)}` : 'Valor aberto'
+          } para ${pixLink.recipientName}`,
+          url: shareableUrl,
+        })
+        .catch(() => {});
     } else {
-      navigator.clipboard.writeText(url);
-      setCopiedShareUrl(true);
-      setTimeout(() => setCopiedShareUrl(false), 2000);
+      handleCopyShareUrl();
     }
   };
 
@@ -61,11 +84,17 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
     }
   };
 
+  const handleVisit = () => {
+    if (onVisitLink) {
+      onVisitLink(pixLink);
+    }
+  };
+
   const isPaid = pixLink.status === 'paid' || simulatedPaid;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-[560px] bg-[#0E1523] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto">
+      <div className="relative w-full max-w-[580px] bg-[#0E1523] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[95vh] overflow-y-auto">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -74,7 +103,7 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Top Green Check Badge matching screenshot */}
+        {/* Top Green Check Badge */}
         <div className="flex flex-col items-center text-center mb-5">
           <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-3">
             <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -83,10 +112,10 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
           </div>
 
           <h2 className="text-2xl font-bold text-white tracking-tight">
-            Link do Pix Gerado!
+            Link do Pix Gerado com Sucesso!
           </h2>
-          <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-sm">
-            Escaneie o QR Code ou copie o código Pix no padrão oficial gov.br para pagar.
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-md">
+            Você pode visitar o link público de checkout, compartilhar com o pagador ou escanear o QR Code.
           </p>
 
           {/* Amount Badge */}
@@ -95,7 +124,7 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
             <span className="font-bold text-white">
               {pixLink.amount !== null
                 ? `R$ ${pixLink.amount.toFixed(2).replace('.', ',')}`
-                : 'Valor Variável'}
+                : 'Valor Aberto (Variável)'}
             </span>
             {pixLink.isFixed ? (
               <span className="text-[10px] text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded">
@@ -109,24 +138,54 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
           </div>
         </div>
 
-        {/* QR Code Container matching screenshot */}
-        <div className="flex justify-center mb-5">
+        {/* Primary Action: VISITAR LINK BUTTON (Requested by user) */}
+        <div className="mb-5 bg-gradient-to-r from-teal-500/15 to-blue-500/15 border border-teal-500/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#00D4AA]/20 border border-[#00D4AA]/40 flex items-center justify-center text-[#00D4AA] shrink-0">
+              <ExternalLink className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Página de Pagamento do Cliente</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-semibold border border-teal-500/30">
+                  Pronto
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Acesse a tela que as pessoas usam para fazer o Pix.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleVisit}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#00D4AA] hover:bg-[#00BF98] text-[#071311] font-bold text-xs rounded-xl shadow-lg shadow-teal-500/25 transition-all cursor-pointer active:scale-95 shrink-0"
+          >
+            <ExternalLink className="w-4 h-4 text-[#071311]" />
+            <span>Visitar Link</span>
+          </button>
+        </div>
+
+        {/* QR Code Container */}
+        <div className="flex justify-center mb-4">
           <PixQRCode
             value={pixLink.payload}
-            size={220}
+            size={210}
             allowDownload={true}
             downloadFilename={`pix-${pixLink.slug}.png`}
           />
         </div>
 
         {/* Official Bacen / gov.br standard badge */}
-        <div className="mb-3 flex items-center justify-center gap-1.5 text-[11px] text-teal-400 bg-teal-500/10 border border-teal-500/20 py-1.5 px-3 rounded-xl text-center">
+        <div className="mb-4 flex items-center justify-center gap-2 text-[11px] text-teal-400 bg-teal-500/10 border border-teal-500/20 py-1.5 px-3 rounded-xl text-center">
           <ShieldCheck className="w-4 h-4 shrink-0 text-teal-400" />
-          <span>Padrão Oficial Banco Central (gov.br / Bacen EMVCo)</span>
+          <span>Padrão Oficial Banco Central do Brasil (gov.br / Bacen EMVCo)</span>
+          <GovPixBadge size="xs" />
         </div>
 
-        {/* Copy Box Section matching screenshot */}
-        <div className="bg-[#0B0F17] border border-slate-800/80 rounded-2xl p-4 mb-5">
+        {/* Copy Box Section: Copia e Cola / Chave */}
+        <div className="bg-[#0B0F17] border border-slate-800/80 rounded-2xl p-4 mb-4">
           {/* Tabs: Padrão Gov.br (Copia e Cola) vs Chave Pix */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -176,7 +235,7 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
                 {copiedPayload ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-white" />
-                    <span>Copiado (Gov.br)</span>
+                    <span>Copiado</span>
                   </>
                 ) : (
                   <>
@@ -227,16 +286,59 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
           )}
         </div>
 
-        {/* Info notice matching screenshot */}
-        <div className="flex items-start justify-center gap-2 text-center text-xs text-slate-400 mb-6 px-4">
+        {/* Shareable Link Box */}
+        <div className="bg-[#0B0F17] border border-slate-800/80 rounded-2xl p-3.5 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5 text-teal-400" />
+              <span>Link para Compartilhar com o Pagador</span>
+            </span>
+            <span className="text-[10px] text-slate-400">{displayUrl}</span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-[#0E1523] border border-slate-700/70 rounded-xl p-1.5 pl-3">
+            <span className="text-xs text-teal-300 font-mono truncate flex-1 select-all">
+              {shareableUrl}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyShareUrl}
+              className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0 border border-slate-700"
+            >
+              {copiedShareUrl ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Link Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Copiar Link</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Info notice */}
+        <div className="flex items-start justify-center gap-2 text-center text-xs text-slate-400 mb-5 px-3">
           <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
           <p className="text-slate-400 leading-relaxed text-xs">
-            Após copiar o código Pix (formato oficial gov.br), cole na opção "Pix Copia e Cola" do seu aplicativo bancário para efetuar o pagamento.
+            Ao abrir o link, o pagador visualiza o valor, nome do beneficiário, o QR Code e o botão para copiar o código Pix oficial.
           </p>
         </div>
 
         {/* Status / Simulation footer */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-800">
+        <div className="flex flex-col sm:flex-row items-center gap-2 pt-3 border-t border-slate-800">
+          <button
+            type="button"
+            onClick={handleVisit}
+            className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#00D4AA] hover:bg-[#00BF98] text-[#071311] font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md shadow-teal-500/20 active:scale-95"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-[#071311]" />
+            <span>Visitar Link</span>
+          </button>
+
           <button
             type="button"
             onClick={handleShare}
@@ -250,7 +352,7 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
             type="button"
             onClick={handleSimulatePayment}
             disabled={isPaid}
-            className={`w-full sm:w-auto inline-flex items-center justify-center gap-1.5 py-2.5 px-4 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+            className={`w-full sm:w-auto inline-flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
               isPaid
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
                 : 'bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40'
@@ -259,12 +361,12 @@ export const GeneratedPixModal: React.FC<GeneratedPixModalProps> = ({
             {isPaid ? (
               <>
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Pagamento Confirmado!</span>
+                <span>Confirmado!</span>
               </>
             ) : (
               <>
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Simular Pagamento Pago</span>
+                <span>Simular Pago</span>
               </>
             )}
           </button>
